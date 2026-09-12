@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  vega-api:
+    build: .
+    container_name: vega-voice-assistant
+    ports:
+      - "8000:8000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - LLM_MODEL=${LLM_MODEL:-gpt-4o-mini}
+      - TTS_ENGINE=${TTS_ENGINE:-edge-tts}
+      - TTS_VOICE=${TTS_VOICE:-en-US-AriaNeural}
+      - STT_ENGINE=${STT_ENGINE:-openai}
+      - PCM_SAMPLE_RATE=16000
+    restart: unless-stopped

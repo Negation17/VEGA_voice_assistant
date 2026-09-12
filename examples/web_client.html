@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VEGA AI Voice Assistant - Web Console</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --primary: #6366f1;
+      --primary-hover: #4f46e5;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent-green: #10b981;
+      --accent-red: #ef4444;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem 1rem;
+    }
+    .container {
+      width: 100%;
+      max-width: 680px;
+      background: var(--card-bg);
+      border-radius: 16px;
+      padding: 2rem;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    h1 { font-size: 1.5rem; font-weight: 700; color: #818cf8; }
+    .status-badge {
+      font-size: 0.85rem;
+      padding: 0.25rem 0.75rem;
+      border-radius: 9999px;
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--accent-green);
+      font-weight: 500;
+    }
+    .chat-box {
+      min-height: 280px;
+      max-height: 400px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+      padding: 1rem;
+      background: rgba(15, 23, 42, 0.6);
+      border-radius: 12px;
+    }
+    .msg {
+      padding: 0.75rem 1rem;
+      border-radius: 12px;
+      max-width: 85%;
+      line-height: 1.5;
+      font-size: 0.95rem;
+    }
+    .user-msg {
+      align-self: flex-end;
+      background: var(--primary);
+      color: white;
+    }
+    .bot-msg {
+      align-self: flex-start;
+      background: #334155;
+      color: var(--text);
+    }
+    .controls {
+      display: flex;
+      gap: 0.75rem;
+    }
+    input[type="text"] {
+      flex: 1;
+      background: #0f172a;
+      border: 1px solid rgba(255,255,255,0.15);
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      color: white;
+      font-size: 0.95rem;
+    }
+    input[type="text"]:focus { outline: none; border-color: var(--primary); }
+    button {
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 0.75rem 1.25rem;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+    button:hover { background: var(--primary-hover); }
+    .btn-record {
+      background: var(--accent-red);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .btn-record.recording {
+      animation: pulse 1s infinite alternate;
+    }
+    @keyframes pulse {
+      from { transform: scale(1); }
+      to { transform: scale(1.05); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🎙️ VEGA Voice Assistant</h1>
+      <span class="status-badge" id="apiStatus">Checking API...</span>
+    </header>
+
+    <div class="chat-box" id="chatBox">
+      <div class="msg bot-msg">Hello! I am VEGA. You can talk to me with your microphone or type your question below.</div>
+    </div>
+
+    <div class="controls">
+      <input type="text" id="textInput" placeholder="Ask VEGA a question..." />
+      <button id="sendBtn">Send</button>
+      <button id="micBtn" class="btn-record">🎤 Record</button>
+    </div>
+  </div>
+
+  <script>
+    const API_URL = "http://localhost:8000";
+    const statusEl = document.getElementById("apiStatus");
+    const chatBox = document.getElementById("chatBox");
+    const textInput = document.getElementById("textInput");
+    const sendBtn = document.getElementById("sendBtn");
+    const micBtn = document.getElementById("micBtn");
+
+    let mediaRecorder = null;
+    let audioChunks = [];
+    let isRecording = false;
+
+    // Check backend connection
+    fetch(`${API_URL}/`)
+      .then(res => res.json())
+      .then(data => {
+        statusEl.textContent = data.message || "Online";
+      })
+      .catch(() => {
+        statusEl.textContent = "Offline (Check API_URL)";
+        statusEl.style.color = "var(--accent-red)";
+      });
+
+    function addMessage(text, isUser = false) {
+      const msg = document.createElement("div");
+      msg.className = `msg ${isUser ? "user-msg" : "bot-msg"}`;
+      msg.textContent = text;
+      chatBox.appendChild(msg);
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    async function sendQuestion(text) {
+      if (!text.trim()) return;
+      addMessage(text, true);
+      textInput.value = "";
+      try {
+        const res = await fetch(`${API_URL}/ask?question=${encodeURIComponent(text)}`, { method: "POST" });
+        const data = await res.json();
+        addMessage(data.answer);
+      } catch (err) {
+        addMessage(`Error: ${err.message}`);
+      }
+    }
+
+    sendBtn.addEventListener("click", () => sendQuestion(textInput.value));
+    textInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") sendQuestion(textInput.value);
+    });
+
+    // Voice recording
+    micBtn.addEventListener("click", async () => {
+      if (!isRecording) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          mediaRecorder = new MediaRecorder(stream);
+          audioChunks = [];
+          mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+          mediaRecorder.onstop = async () => {
+            const audioBlob = new Blob(audioChunks, { type: "audio/wav" });
+            const formData = new FormData();
+            formData.append("file", audioBlob, "user_voice.wav");
+            addMessage("Transcribing and asking VEGA...", true);
+            try {
+              const res = await fetch(`${API_URL}/chat`, { method: "POST", body: formData });
+              const data = await res.json();
+              if (data.question) {
+                addMessage(`You asked: "${data.question}"`, true);
+                addMessage(data.answer);
+              } else {
+                addMessage(data.message || "No speech detected.");
+              }
+            } catch (err) {
+              addMessage(`Audio chat error: ${err.message}`);
+            }
+          };
+          mediaRecorder.start();
+          isRecording = true;
+          micBtn.textContent = "⏹️ Stop";
+          micBtn.classList.add("recording");
+        } catch (err) {
+          alert("Microphone permission denied or unsupported: " + err.message);
+        }
+      } else {
+        mediaRecorder.stop();
+        isRecording = false;
+        micBtn.textContent = "🎤 Record";
+        micBtn.classList.remove("recording");
+      }
+    });
+  </script>
+</body>
+</html>
